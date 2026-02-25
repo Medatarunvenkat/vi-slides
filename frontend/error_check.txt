@@ -1,0 +1,5 @@
+src/components/PollCard.tsx(134,57): error TS1323: Dynamic imports are only supported when the '--module' flag is set to 'es2020', 'es2022', 'esnext', 'commonjs', 'amd', 'system', 'umd', 'node16', 'node18', 'node20', or 'nodenext'.
+src/services/api.ts(3,17): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.
+src/services/api.ts(3,29): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/services/socketService.ts(3,20): error TS1343: The 'import.meta' meta-property is only allowed when the '--module' option is 'es2020', 'es2022', 'esnext', 'system', 'node16', 'node18', 'node20', or 'nodenext'.
+src/services/socketService.ts(3,32): error TS2339: Property 'env' does not exist on type 'ImportMeta'.

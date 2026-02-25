@@ -1,0 +1,1 @@
+src/components/Whiteboard.tsx(80,30): error TS6133: 'e' is declared but its value is never read.
