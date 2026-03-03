@@ -50,11 +50,14 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, isTeacher, isSpot
             return;
         }
 
+        console.log('Submitting teacher response:', teacherResponse); // Debug log
         setLoading(true);
         try {
             const response = await questionService.respondToQuestion(question._id, teacherResponse);
+            console.log('Response from server:', response); // Debug log
             if (response.success && onUpdate) {
                 onUpdate(response.data);
+                console.log('Updated question data:', response.data); // Debug log
             }
             setIsResponding(false);
         } catch (err) {
@@ -128,14 +131,18 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, isTeacher, isSpot
 
     return (
         <div className="glass-card slide-in" style={{
-            padding: isSpotlight ? '2.5rem' : '1rem',
-            marginBottom: '1rem',
+            padding: isSpotlight ? '2rem' : '1rem',
+            marginBottom: isSpotlight ? '0' : '1rem',
             borderLeft: question.isPinned ? '4px solid var(--color-warning)' : (isOwner ? '4px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.1)'),
             background: question.isPinned ? 'rgba(245, 158, 11, 0.05)' : 'var(--color-surface)',
             boxShadow: question.isPinned ? '0 0 15px rgba(245, 158, 11, 0.1)' : 'var(--shadow-md)',
             display: 'flex',
             gap: isSpotlight ? '2rem' : '1rem',
-            minHeight: isSpotlight ? '600px' : 'auto'
+            minHeight: isSpotlight ? '100%' : 'auto',
+            height: isSpotlight ? '100%' : 'auto',
+            flex: isSpotlight ? 1 : 'auto',
+            alignItems: 'flex-start',
+            width: '100%'
         }}>
             {/* Upvote Section */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
@@ -159,7 +166,12 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, isTeacher, isSpot
                 </span>
             </div>
 
-            <div style={{ flex: 1 }}>
+            <div style={{ 
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: isSpotlight ? '100%' : 'auto'
+            }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         {question.isPinned && <span style={{ fontSize: isSpotlight ? '1.8rem' : '1.2rem', marginRight: '4px' }}>📌</span>}
@@ -279,7 +291,64 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, isTeacher, isSpot
                     </div>
                 ) : (
                     <>
-                        <p style={{ fontSize: isSpotlight ? '1.8rem' : '1rem', whiteSpace: 'pre-wrap', margin: 0, lineHeight: isSpotlight ? '1.6' : '1.5' }}>{question.content}</p>
+                        {/* Refinement Status Badge */}
+                        {question.refinementStatus === 'pending' && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                marginBottom: '0.5rem',
+                                fontSize: '0.75rem',
+                                color: 'var(--color-warning)',
+                                fontWeight: '600'
+                            }}>
+                                <div className="spinner" style={{ width: '10px', height: '10px', borderWidth: '1.5px', borderColor: 'var(--color-warning)', borderRightColor: 'transparent' }}></div>
+                                Refining grammar & clarity...
+                            </div>
+                        )}
+                        {question.refinementStatus === 'completed' && question.originalContent && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                marginBottom: '0.3rem',
+                                fontSize: '0.7rem',
+                                color: 'var(--color-success)',
+                                fontWeight: '600'
+                            }}>
+                                ✓ Refined by AI
+                            </div>
+                        )}
+
+                        <p style={{ 
+                            fontSize: isSpotlight ? '3rem' : '1rem', 
+                            whiteSpace: 'pre-wrap', 
+                            margin: isSpotlight ? '2rem 0' : '0', 
+                            lineHeight: isSpotlight ? '1.4' : '1.5',
+                            fontWeight: isSpotlight ? '600' : 'normal',
+                            color: 'var(--color-text)',
+                            flex: isSpotlight ? 1 : 'auto'
+                        }}>{question.content}</p>
+
+                        {/* Show original content if question was refined */}
+                        {question.refinementStatus === 'completed' && question.originalContent && question.originalContent !== question.content && (
+                            <div style={{
+                                marginTop: '0.5rem',
+                                padding: '0.5rem',
+                                borderRadius: 'var(--radius-sm)',
+                                background: 'rgba(107, 114, 128, 0.05)',
+                                border: '1px solid rgba(107, 114, 128, 0.1)',
+                                fontSize: '0.75rem',
+                                color: 'var(--color-text-muted)'
+                            }}>
+                                <details style={{ cursor: 'pointer' }}>
+                                    <summary style={{ fontWeight: '600', userSelect: 'none' }}>Original submission</summary>
+                                    <p style={{ margin: '0.3rem 0 0 0', whiteSpace: 'pre-wrap', fontSize: '0.7rem' }}>
+                                        {question.originalContent}
+                                    </p>
+                                </details>
+                            </div>
+                        )}
 
                         {/* Teacher Response UI */}
                         {isResponding && isTeacher && (
@@ -317,7 +386,14 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, isTeacher, isSpot
                                         </span>
                                     )}
                                 </div>
-                                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', margin: 0, lineHeight: '1.4', fontWeight: '500' }}>
+                                <p style={{ 
+                                    fontSize: isSpotlight ? '1.2rem' : '0.85rem', 
+                                    color: 'var(--color-text-secondary)', 
+                                    margin: 0, 
+                                    lineHeight: isSpotlight ? '1.8' : '1.6', 
+                                    fontWeight: '500',
+                                    whiteSpace: 'pre-wrap'
+                                }}>
                                     {question.teacherAnswer}
                                 </p>
                             </div>

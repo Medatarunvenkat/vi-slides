@@ -3,6 +3,7 @@ import Session from '../models/Session';
 import Question from '../models/Question';
 import GuestParticipant from '../models/GuestParticipant';
 import { emitToSession } from '../config/socket';
+import { queueQuestion } from '../services/questionBatchService';
 
 // @desc    Guest join session with form submission
 // @route   POST /api/sessions/guest/join
@@ -51,9 +52,21 @@ export const guestJoinSession = async (req: Request, res: Response): Promise<voi
                 guestEmail: email,
                 status: 'active',
                 analysisStatus: 'not_requested',
+                refinementStatus: 'pending',
+                originalContent: question.trim(),
                 upvotes: [],
                 isPinned: false,
                 isDirectToTeacher: true
+            });
+
+            // Queue for batch refinement (same as regular questions)
+            queueQuestion({
+                _id: createdQuestion._id,
+                content: question.trim(),
+                sessionId: session._id.toString(),
+                guestName: name,
+                guestEmail: email,
+                timestamp: Date.now()
             });
 
             // Emit the new question to the session
@@ -140,7 +153,19 @@ export const createGuestQuestion = async (req: Request, res: Response): Promise<
             guestEmail: email,
             status: 'active',
             isDirectToTeacher: true,
-            analysisStatus: 'not_requested'
+            analysisStatus: 'not_requested',
+            refinementStatus: 'pending',
+            originalContent: content
+        });
+
+        // Queue for batch refinement (same as regular questions)
+        queueQuestion({
+            _id: question._id,
+            content,
+            sessionId: sessionId.toString(),
+            guestName: name,
+            guestEmail: email,
+            timestamp: Date.now()
         });
 
         // Emit real-time event

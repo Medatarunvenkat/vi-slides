@@ -9,7 +9,7 @@ export default defineConfig({
         port: 5173,
         open: true,
         host: true,        // Expose to network
-        allowedHosts: true,
+        allowedHosts: ['wilbur-unabused-unsymphoniously.ngrok-free.dev', 'localhost', '127.0.0.1'],
         proxy: {
             '/api': {
                 target: 'http://localhost:5001',

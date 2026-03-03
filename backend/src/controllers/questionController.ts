@@ -3,6 +3,7 @@ import Question from '../models/Question';
 import Session from '../models/Session';
 import { emitToSession } from '../config/socket';
 import { analyzeQuestion } from '../services/aiService';
+import { queueQuestion } from '../services/questionBatchService';
 import User from '../models/User';
 
 // @desc    Create a new question
@@ -28,7 +29,9 @@ export const createQuestion = async (req: Request, res: Response): Promise<void>
             user: req.user?._id,
             session: sessionId,
             isDirectToTeacher: !!isDirectToTeacher,
-            analysisStatus: 'not_requested' // Teacher will trigger AI analysis manually
+            analysisStatus: 'not_requested',
+            refinementStatus: 'pending', // Mark as pending refinement
+            originalContent: content // Store original before refinement
         });
 
         // Reward points for asking a question (+10)
@@ -37,12 +40,27 @@ export const createQuestion = async (req: Request, res: Response): Promise<void>
         // Populate user info for the response and emission
         const populatedQuestion = await Question.findById(question._id).populate('user', 'name');
 
-        // Emit real-time event
-        emitToSession(session.code, 'new_question', populatedQuestion);
+        // Emit real-time event with pending refinement status
+        emitToSession(session.code, 'new_question', {
+            ...populatedQuestion?.toObject(),
+            refinementStatus: 'pending',
+            message: 'Question submitted and queued for refinement'
+        });
+
+        // Queue for batch refinement
+        queueQuestion({
+            _id: question._id,
+            content,
+            sessionId: sessionId.toString(),
+            userId: req.user?._id?.toString(),
+            timestamp: Date.now()
+        });
 
         res.status(201).json({
             success: true,
-            data: populatedQuestion
+            data: populatedQuestion,
+            refinementStatus: 'pending',
+            message: 'Question submitted and queued for grammar/clarity refinement'
         });
 
     } catch (error) {
@@ -377,3 +395,42 @@ export const requestAIAnalysis = async (req: Request, res: Response): Promise<vo
     }
 };
 
+// @desc    Manually trigger batch question refinement (Teacher only)
+// @route   POST /api/questions/batch/process/:sessionId
+// @access  Private (Teacher only)
+export const processBatch = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { sessionId } = req.params;
+
+        const session = await Session.findById(sessionId).populate('teacher');
+
+        if (!session) {
+            res.status(404).json({ success: false, message: 'Session not found' });
+            return;
+        }
+
+        // Only teacher can manually trigger batch processing
+        if (session.teacher.toString() !== req.user?._id.toString()) {
+            res.status(403).json({ success: false, message: 'Only the teacher can trigger batch processing' });
+            return;
+        }
+
+        // Import here to avoid circular dependency
+        const { triggerBatchProcessing } = await import('../services/questionBatchService');
+        
+        // Trigger batch processing asynchronously
+        triggerBatchProcessing(sessionId);
+
+        res.status(202).json({
+            success: true,
+            message: 'Batch refinement triggered. Questions will be refined and updated shortly.'
+        });
+
+    } catch (error) {
+        console.error('Process batch error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error processing batch'
+        });
+    }
+};

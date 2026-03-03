@@ -8,6 +8,10 @@ export interface IQuestion extends Document {
     session: mongoose.Types.ObjectId;
     status: 'active' | 'archived';
     analysisStatus: 'not_requested' | 'pending' | 'completed' | 'failed';
+    refinementStatus?: 'pending' | 'completed' | 'failed'; // Batch refinement status
+    refinedContent?: string; // Grammar/clarity improved version
+    originalContent?: string; // Original student-submitted content
+    refinementTimestamp?: Date; // When refinement was completed
     upvotes: mongoose.Types.ObjectId[];
     isPinned: boolean;
     isDirectToTeacher: boolean;
@@ -58,6 +62,25 @@ const questionSchema = new Schema<IQuestion>({
         type: String,
         enum: ['not_requested', 'pending', 'completed', 'failed'],
         default: 'not_requested'
+    },
+    refinementStatus: {
+        type: String,
+        enum: ['pending', 'completed', 'failed'],
+        default: undefined
+    },
+    refinedContent: {
+        type: String,
+        trim: true,
+        maxlength: [500, 'Refined question cannot be more than 500 characters']
+    },
+    originalContent: {
+        type: String,
+        trim: true,
+        maxlength: [500, 'Original question cannot be more than 500 characters']
+    },
+    refinementTimestamp: {
+        type: Date,
+        default: null
     },
     upvotes: [{
         type: Schema.Types.ObjectId,

@@ -12,6 +12,10 @@ export interface Question {
     session: string;
     status: 'active' | 'archived';
     analysisStatus: 'not_requested' | 'pending' | 'completed' | 'failed';
+    refinementStatus?: 'pending' | 'completed' | 'failed'; // Batch refinement status
+    refinedContent?: string; // Refined version of the question
+    originalContent?: string; // Original student content
+    refinementTimestamp?: string; // When refinement was completed
     isPinned: boolean;
     isDirectToTeacher: boolean;
     upvotes: string[];

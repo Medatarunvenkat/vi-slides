@@ -207,3 +207,136 @@ export const clusterQuestions = async (questions: { id: string, text: string }[]
 
     return { "General": questions.map(q => q.id) };
 };
+
+/**
+ * Batch refine multiple questions for grammar, clarity, and meaning preservation
+ * Reduces excessive LLM calls by processing multiple questions at once
+ * @param questions Array of { id, content } objects
+ * @returns Array of refined results with { id, refinedContent }
+ */
+export const batchRefineQuestions = async (questions: { id: string; content: string }[]) => {
+    if (!process.env.GEMINI_API_KEY || questions.length === 0) {
+        console.warn('GEMINI_API_KEY missing or no questions to refine');
+        return questions.map(q => ({
+            id: q.id,
+            refinedContent: q.content,
+            status: 'skipped'
+        }));
+    }
+
+    const modelNames = [
+        'gemini-2.0-flash',
+        'gemini-2.5-flash',
+        'gemini-1.5-flash',
+        'gemini-pro'
+    ];
+
+    const questionsJson = questions.map((q, idx) => 
+        `{\n  "id": "${q.id}",\n  "index": ${idx},\n  "originalQuestion": "${q.content.replace(/"/g, '\\"').replace(/\n/g, ' ')}"\n}`
+    ).join(',\n');
+
+    const prompt = `You are an AI teaching assistant for Vi-SlideS, a live classroom engagement platform.
+Your task is to refine student questions for GRAMMAR, CLARITY, and PUNCTUATION while preserving the ORIGINAL MEANING.
+
+IMPORTANT RULES:
+1. Keep the original intent and meaning - do NOT change the question's core message
+2. Fix grammar, spelling, and sentence structure
+3. Improve clarity and readability
+4. Keep questions concise (under 500 characters)
+5. Maintain the original question type (factual, conceptual, procedural, etc.)
+6. Return ONLY a valid JSON array with NO markdown, NO code blocks, NO extra text
+
+Questions to refine:
+[
+${questionsJson}
+]
+
+Return ONLY this JSON format (no markdown, no extra text):
+[
+  {
+    "id": "question_id",
+    "originalQuestion": "original text here",
+    "refinedQuestion": "improved text here",
+    "changesMade": "brief description of improvements"
+  }
+]`;
+
+    for (const modelName of modelNames) {
+        try {
+            console.log(`🔄 Batch refining ${questions.length} questions with ${modelName}...`);
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            
+            let responseText = '';
+            try {
+                responseText = response.text().trim();
+            } catch (innerError) {
+                console.error(`⚠️ Model ${modelName} returned a safety block or empty response.`);
+                continue;
+            }
+
+            console.log(`📤 Raw response from ${modelName}:`);
+            console.log(responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
+
+            try {
+                // Clean response of markdown code blocks
+                const cleanJson = responseText
+                    .replace(/^```json\s*/i, '')
+                    .replace(/^```\s*/i, '')
+                    .replace(/```\s*$/, '')
+                    .trim();
+
+                // Extract JSON array
+                const jsonMatch = cleanJson.match(/\[\s*\{[\s\S]*\}\s*\]/);
+                if (!jsonMatch) {
+                    throw new Error('No JSON array found in response');
+                }
+
+                const parsed = JSON.parse(jsonMatch[0]);
+
+                if (!Array.isArray(parsed)) {
+                    throw new Error('Response is not an array');
+                }
+
+                console.log(`✅ Successfully refined ${parsed.length} questions using ${modelName}`);
+
+                // Map response to expected format
+                return parsed.map((item: any) => ({
+                    id: item.id,
+                    refinedContent: item.refinedQuestion || item.originalQuestion,
+                    originalContent: item.originalQuestion,
+                    changesMade: item.changesMade,
+                    status: 'completed'
+                }));
+
+            } catch (parseError) {
+                console.error(`❌ JSON Parse Error with ${modelName}:`, parseError);
+                console.log('Raw response was:', responseText);
+                continue;
+            }
+
+        } catch (error: any) {
+            console.error(`⚠️ Batch refinement with ${modelName} failed:`, error.message);
+            
+            if (
+                error.message.includes('404') ||
+                error.message.includes('429') ||
+                error.message.includes('quota') ||
+                error.message.includes('Too Many Requests')
+            ) {
+                console.log(`🔄 Retrying next model...`);
+                continue;
+            }
+        }
+    }
+
+    // Fallback: return questions unchanged if all models fail
+    console.error('❌ All models failed for batch refinement. Returning original questions.');
+    return questions.map(q => ({
+        id: q.id,
+        refinedContent: q.content,
+        originalContent: q.content,
+        status: 'failed'
+    }));
+};

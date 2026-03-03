@@ -42,8 +42,8 @@ const SessionView: React.FC = () => {
     const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
     const [showExportOptions, setShowExportOptions] = useState(false);
 
-    const [showLeftSidebar, setShowLeftSidebar] = useState(true);
-    const [showRightSidebar, setShowRightSidebar] = useState(true);
+    const [showLeftSidebar, setShowLeftSidebar] = useState(false);
+    const [showRightSidebar, setShowRightSidebar] = useState(false);
     const [showQRModal, setShowQRModal] = useState(false);
     const [showEngagement, setShowEngagement] = useState(false);
 
@@ -98,7 +98,13 @@ const SessionView: React.FC = () => {
 
                     socketService.offUpdateQuestion();
                     socketService.onUpdateQuestion((updatedQ: Question) => {
-                        setQuestions(prev => prev.map(q => q._id === updatedQ._id ? updatedQ : q));
+                        console.log('📨 SessionView received updated question:', updatedQ);
+                        console.log('📨 Teacher answer:', updatedQ.teacherAnswer);
+                        setQuestions(prev => {
+                            const newQuestions = prev.map(q => q._id === updatedQ._id ? updatedQ : q);
+                            console.log('📨 Updated questions array:', newQuestions);
+                            return newQuestions;
+                        });
                     });
 
                     socketService.offDeleteQuestion();
@@ -117,6 +123,25 @@ const SessionView: React.FC = () => {
                     socketService.offQuestionAnalyzed();
                     socketService.onQuestionAnalyzed((analyzedQ: Question) => {
                         setQuestions(prev => prev.map(q => q._id === analyzedQ._id ? analyzedQ : q));
+                    });
+
+                    socketService.offQuestionsRefined();
+                    socketService.onQuestionsRefined((data: any) => {
+                        console.log('🔄 Refined questions batch received:', data);
+                        if (data.questions && Array.isArray(data.questions)) {
+                            setQuestions(prev => {
+                                const updatedMap = new Map(prev.map(q => [q._id, q]));
+                                data.questions.forEach((refined: Question) => {
+                                    updatedMap.set(refined._id, refined);
+                                });
+                                return Array.from(updatedMap.values());
+                            });
+                        }
+                    });
+
+                    socketService.offBatchRefinementFailed();
+                    socketService.onBatchRefinementFailed((data: any) => {
+                        console.warn('⚠️ Batch refinement failed:', data);
                     });
 
                     socketService.offQuestionPinnedToggle();
@@ -211,27 +236,9 @@ const SessionView: React.FC = () => {
         };
 
         fetchData();
-
-        // Cleanup on unmount
-        return () => {
-            if (code) {
-                socketService.leaveSession(code);
-                socketService.offNewQuestion();
-                socketService.offUpdateQuestion();
-                socketService.offDeleteQuestion();
-                socketService.offSessionStatusUpdate();
-                socketService.offQuestionAnalyzed();
-                socketService.offQuestionPinnedToggle();
-                socketService.offPollEvents();
-                socketService.offEngagementEvents();
-                socketService.offWhiteboardEvents();
-                socketService.offPulseCheckEvents();
-                // socketService.offPointsUpdated(); // Assuming add this method to service or generic off
-            }
-        };
     }, [code, navigate]);
 
-    // 5-Second Auto-Refresh Logic
+    // 5-Second Auto-Refresh Logic for Teacher Answers
     useEffect(() => {
         if (!session || session.status === 'ended' || !session._id) return;
 
@@ -241,19 +248,22 @@ const SessionView: React.FC = () => {
                 if (questionsRes.success) {
                     setQuestions(prev => {
                         const newQuestions = questionsRes.data;
-                        // Simple merge/deduplication to avoid flickering
-                        // If count is same and IDs match, don't update to preserve local state
-                        if (newQuestions.length === prev.length) {
-                            const allMatch = newQuestions.every(nq => prev.find(pq => pq._id === nq._id));
-                            if (allMatch) return prev;
+                        // Check for new teacher answers
+                        const hasNewTeacherAnswers = newQuestions.some(nq => 
+                            nq.teacherAnswer && !prev.find(pq => pq._id === nq._id && pq.teacherAnswer === nq.teacherAnswer)
+                        );
+                        
+                        if (hasNewTeacherAnswers) {
+                            console.log('📨 Polling found new teacher answers');
                         }
+                        
                         return [...newQuestions].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
                     });
                 }
             } catch (err) {
-                console.error('Auto-refresh marks error:', err);
+                console.log('Polling error:', err);
             }
-        }, 5000);
+        }, 3000); // Poll every 3 seconds
 
         return () => clearInterval(refreshInterval);
     }, [session]);
@@ -847,45 +857,66 @@ const SessionView: React.FC = () => {
                         flexDirection: 'column',
                         justifyContent: 'center',
                         alignItems: 'center',
-                        maxWidth: '800px',
-                        width: '100%',
-                        margin: '0 auto'
-                    }}>
-                        {selectedQuestion ? (
-                            <div style={{ width: '100%', position: 'relative' }}>
-                                <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <button
-                                        onClick={handlePrevQuestion}
-                                        disabled={sortedQuestions.findIndex(q => q._id === selectedQuestionId) === 0}
-                                        className="btn btn-secondary"
-                                        style={{ opacity: sortedQuestions.findIndex(q => q._id === selectedQuestionId) === 0 ? 0.3 : 1 }}
-                                    >
-                                        ◀ Previous
-                                    </button>
-                                    <span style={{ color: 'var(--color-text-muted)' }}>
-                                        Question {sortedQuestions.findIndex(q => q._id === selectedQuestionId) + 1} of {questions.length}
-                                    </span>
-                                    <button
-                                        onClick={handleNextQuestion}
-                                        disabled={sortedQuestions.findIndex(q => q._id === selectedQuestionId) === sortedQuestions.length - 1}
-                                        className="btn btn-secondary"
-                                        style={{ opacity: sortedQuestions.findIndex(q => q._id === selectedQuestionId) === sortedQuestions.length - 1 ? 0.3 : 1 }}
-                                    >
-                                        Next ▶
-                                    </button>
-                                </div>
+                        width: '85%',
+                        height: '100%',
+                        margin: '0 auto',
+                        position: 'relative',
+                        padding: '1.5rem'
+                    }} className="slide-container">
+                        {/* Question Counter - moved outside slide content */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '-3rem',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            color: 'var(--color-text-muted)',
+                            fontSize: '0.9rem',
+                            fontWeight: '500',
+                            zIndex: 10,
+                            background: 'rgba(15, 23, 42, 0.9)',
+                            padding: '0.5rem 1rem',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
+                        }}>
+                            Question {sortedQuestions.findIndex(q => q._id === selectedQuestionId) + 1} of {questions.length}
+                        </div>
 
-                                <div className="anim-scale-up">
-                                    <QuestionCard
-                                        question={selectedQuestion}
-                                        isTeacher={isTeacher}
-                                        onUpdate={(updated) => setQuestions(prev => prev.map(item => item._id === updated._id ? updated : item))}
-                                        onDelete={(id) => {
-                                            setQuestions(prev => prev.filter(item => item._id !== id));
-                                            if (selectedQuestionId === id) setSelectedQuestionId(null);
-                                        }}
-                                    />
-                                </div>
+                        {/* Navigation Controls - only arrows, no counter */}
+                        <div className="slide-nav-controls" style={{ top: '50%' }}>
+                            <button
+                                onClick={handlePrevQuestion}
+                                disabled={sortedQuestions.findIndex(q => q._id === selectedQuestionId) === 0}
+                                className="btn-nav btn-prev"
+                            >
+                                &lt;
+                            </button>
+                            <button
+                                onClick={handleNextQuestion}
+                                disabled={sortedQuestions.findIndex(q => q._id === selectedQuestionId) === sortedQuestions.length - 1}
+                                className="btn-nav btn-next"
+                            >
+                                &gt;
+                            </button>
+                        </div>
+
+                        {selectedQuestion ? (
+                            <div className="anim-scale-up" style={{ 
+                                width: '100%',
+                                height: '100%',
+                                flex: 1,
+                                display: 'flex',
+                                flexDirection: 'column'
+                            }}>
+                                <QuestionCard
+                                    question={selectedQuestion}
+                                    isTeacher={isTeacher}
+                                    onUpdate={(updated) => setQuestions(prev => prev.map(item => item._id === updated._id ? updated : item))}
+                                    onDelete={(id) => {
+                                        setQuestions(prev => prev.filter(item => item._id !== id));
+                                        if (selectedQuestionId === id) setSelectedQuestionId(null);
+                                    }}
+                                />
                             </div>
                         ) : (
                             <div style={{ textAlign: 'center', opacity: 0.5 }}>
@@ -1175,7 +1206,15 @@ const SessionView: React.FC = () => {
 
                         {session.qrCodeDataUrl ? (
                             <div style={{ background: 'white', padding: '0.8rem', borderRadius: '12px', display: 'inline-block', boxShadow: '0 0 30px rgba(99, 102, 241, 0.15)' }}>
-                                <img src={session.qrCodeDataUrl} alt="QR Code" style={{ width: '250px', height: '250px', display: 'block' }} />
+                                <a
+                                    href={session.joinUrl || `${window.location.origin}/join/${session.code}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Open join form"
+                                    style={{ display: 'block' }}
+                                >
+                                    <img src={session.qrCodeDataUrl} alt="QR Code" style={{ width: '250px', height: '250px', display: 'block', cursor: 'pointer' }} />
+                                </a>
                             </div>
                         ) : (
                             <div style={{ padding: '2rem', color: 'var(--color-text-muted)' }}>QR Code missing</div>
