@@ -2647,6 +2647,28 @@ const SessionView: React.FC = () => {
                         setQuestions(prev => prev.map(q => q._id === updatedQ._id ? updatedQ : q));
                     });
 
+                    socketService.offQuestionsRefined();
+                    socketService.onQuestionsRefined((data: any) => {
+                        console.log('✨ Questions refined:', data.count);
+                        setQuestions(prev => {
+                            const updated = [...prev];
+                            data.questions.forEach((refinedQ: Question) => {
+                                const index = updated.findIndex(q => q._id === refinedQ._id);
+                                if (index !== -1) {
+                                    updated[index] = refinedQ;
+                                }
+                            });
+                            return updated;
+                        });
+                        setToast({ message: `Refined ${data.count} questions for clarity`, type: 'info' });
+                    });
+
+                    socketService.offBatchRefinementFailed();
+                    socketService.onBatchRefinementFailed((data: any) => {
+                        console.error('❌ Batch refinement failed:', data.error);
+                        setToast({ message: 'AI Refinement failed, retrying...', type: 'warning' });
+                    });
+
                     // User Join Listener
                     socketService.offUserJoined();
                     socketService.onUserJoined((newUser: any) => {
