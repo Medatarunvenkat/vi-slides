@@ -9,41 +9,21 @@ import os from 'os';
 const getLocalUrl = (): string => {
     // 1. High priority: Explicit PUBLIC_URL (ngrok, tunnel, domain)
     if (process.env.PUBLIC_URL) {
-        return process.env.PUBLIC_URL.replace(/\/$/, ''); // Remove trailing slash
+        return process.env.PUBLIC_URL;
     }
-
-    // 2. Medium priority: FRONTEND_URL if it's not localhost
-    const envUrl = process.env.FRONTEND_URL;
-    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-        return envUrl.replace(/\/$/, '');
+    
+    // 2. Medium priority: ngrok tunnel
+    if (process.env.NGROK_URL) {
+        return process.env.NGROK_URL;
     }
-
-    // 3. Fallback: Detect Local Network IP (for same-WiFi usage)
-    const interfaces = os.networkInterfaces();
-    let detectedIp = '';
-
-    for (const name of Object.keys(interfaces)) {
-        const ifaceList = interfaces[name];
-        if (!ifaceList) continue;
-
-        for (const iface of ifaceList) {
-            // Skip internal (loopback) and non-IPv4 addresses
-            if (iface.internal || iface.family !== 'IPv4') continue;
-
-            // Prioritize common private networks
-            if (iface.address.startsWith('192.168.') || iface.address.startsWith('10.')) {
-                return `http://${iface.address}:5173`;
-            }
-            detectedIp = iface.address;
-        }
+    
+    // 3. Low priority: localhost (for local development)
+    if (process.env.NODE_ENV === 'development') {
+        return 'http://localhost:5173';
     }
-
-    if (detectedIp) {
-        return `http://${detectedIp}:5173`;
-    }
-
-    // 4. Ultimate Fallback: Default Localhost
-    return envUrl || 'http://localhost:5173';
+    
+    // 4. Fallback: ngrok tunnel
+    return 'http://192.168.29.141:5173'; // Local network for immediate testing
 };
 
 // Helper to generate a unique 6-character code

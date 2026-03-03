@@ -8,7 +8,8 @@ import {
     togglePin,
     respondToQuestion,
     toggleUpvote,
-    requestAIAnalysis
+    requestAIAnalysis,
+    processBatch
 } from '../controllers/questionController';
 import { protect } from '../middleware/auth';
 
@@ -47,6 +48,10 @@ router.patch('/:id/upvote', toggleUpvote);
 // @route   PATCH /api/questions/:id/analyze
 // @desc    Request AI analysis for a question (Teacher only)
 router.patch('/:id/analyze', requestAIAnalysis);
+
+// @route   POST /api/questions/batch/process/:sessionId
+// @desc    Manually trigger batch question refinement (Teacher only)
+router.post('/batch/process/:sessionId', processBatch);
 
 // @route   PUT /api/questions/:id
 // @desc    Update a question

@@ -1136,7 +1136,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, isTeacher, isSpot
                 </span>
             </div>
 
-            <div style={{
+            <div style={{ 
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
@@ -1261,15 +1261,64 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, isTeacher, isSpot
                     </div>
                 ) : (
                     <>
-                        <p style={{
-                            fontSize: isSpotlight ? '3rem' : '1rem',
-                            whiteSpace: 'pre-wrap',
-                            margin: isSpotlight ? '2rem 0' : '0',
+                        {/* Refinement Status Badge */}
+                        {question.refinementStatus === 'pending' && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                marginBottom: '0.5rem',
+                                fontSize: '0.75rem',
+                                color: 'var(--color-warning)',
+                                fontWeight: '600'
+                            }}>
+                                <div className="spinner" style={{ width: '10px', height: '10px', borderWidth: '1.5px', borderColor: 'var(--color-warning)', borderRightColor: 'transparent' }}></div>
+                                Refining grammar & clarity...
+                            </div>
+                        )}
+                        {question.refinementStatus === 'completed' && question.originalContent && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                marginBottom: '0.3rem',
+                                fontSize: '0.7rem',
+                                color: 'var(--color-success)',
+                                fontWeight: '600'
+                            }}>
+                                ✓ Refined by AI
+                            </div>
+                        )}
+
+                        <p style={{ 
+                            fontSize: isSpotlight ? '3rem' : '1rem', 
+                            whiteSpace: 'pre-wrap', 
+                            margin: isSpotlight ? '2rem 0' : '0', 
                             lineHeight: isSpotlight ? '1.4' : '1.5',
                             fontWeight: isSpotlight ? '600' : 'normal',
                             color: 'var(--color-text)',
                             flex: isSpotlight ? 1 : 'auto'
                         }}>{question.content}</p>
+
+                        {/* Show original content if question was refined */}
+                        {question.refinementStatus === 'completed' && question.originalContent && question.originalContent !== question.content && (
+                            <div style={{
+                                marginTop: '0.5rem',
+                                padding: '0.5rem',
+                                borderRadius: 'var(--radius-sm)',
+                                background: 'rgba(107, 114, 128, 0.05)',
+                                border: '1px solid rgba(107, 114, 128, 0.1)',
+                                fontSize: '0.75rem',
+                                color: 'var(--color-text-muted)'
+                            }}>
+                                <details style={{ cursor: 'pointer' }}>
+                                    <summary style={{ fontWeight: '600', userSelect: 'none' }}>Original submission</summary>
+                                    <p style={{ margin: '0.3rem 0 0 0', whiteSpace: 'pre-wrap', fontSize: '0.7rem' }}>
+                                        {question.originalContent}
+                                    </p>
+                                </details>
+                            </div>
+                        )}
 
                         {/* Teacher Response UI */}
                         {isResponding && isTeacher && (
@@ -1307,11 +1356,11 @@ const QuestionCard: React.FC<QuestionCardProps> = ({ question, isTeacher, isSpot
                                         </span>
                                     )}
                                 </div>
-                                <p style={{
-                                    fontSize: isSpotlight ? '1.2rem' : '0.85rem',
-                                    color: 'var(--color-text-secondary)',
-                                    margin: 0,
-                                    lineHeight: isSpotlight ? '1.8' : '1.6',
+                                <p style={{ 
+                                    fontSize: isSpotlight ? '1.2rem' : '0.85rem', 
+                                    color: 'var(--color-text-secondary)', 
+                                    margin: 0, 
+                                    lineHeight: isSpotlight ? '1.8' : '1.6', 
                                     fontWeight: '500',
                                     whiteSpace: 'pre-wrap'
                                 }}>

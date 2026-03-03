@@ -82,6 +82,18 @@ class SocketService {
         }
     }
 
+    onQuestionsRefined(callback: (data: any) => void) {
+        if (this.socket) {
+            this.socket.on('questions_refined', callback);
+        }
+    }
+
+    onBatchRefinementFailed(callback: (data: any) => void) {
+        if (this.socket) {
+            this.socket.on('batch_refinement_failed', callback);
+        }
+    }
+
     onQuestionPinnedToggle(callback: (question: any) => void) {
         if (this.socket) {
             this.socket.on('question_pinned_toggle', callback);
@@ -105,6 +117,8 @@ class SocketService {
     offDeleteQuestion() { if (this.socket) this.socket.off('delete_question'); }
     offSessionStatusUpdate() { if (this.socket) this.socket.off('session_status_update'); }
     offQuestionAnalyzed() { if (this.socket) this.socket.off('question_analyzed'); }
+    offQuestionsRefined() { if (this.socket) this.socket.off('questions_refined'); }
+    offBatchRefinementFailed() { if (this.socket) this.socket.off('batch_refinement_failed'); }
     offQuestionPinnedToggle() { if (this.socket) this.socket.off('question_pinned_toggle'); }
 
     offPollEvents() {

@@ -2642,6 +2642,25 @@ const SessionView: React.FC = () => {
                         setQuestions(prev => prev.map(q => q._id === analyzedQ._id ? analyzedQ : q));
                     });
 
+                    socketService.offQuestionsRefined();
+                    socketService.onQuestionsRefined((data: any) => {
+                        console.log('🔄 Refined questions batch received:', data);
+                        if (data.questions && Array.isArray(data.questions)) {
+                            setQuestions(prev => {
+                                const updatedMap = new Map(prev.map(q => [q._id, q]));
+                                data.questions.forEach((refined: Question) => {
+                                    updatedMap.set(refined._id, refined);
+                                });
+                                return Array.from(updatedMap.values());
+                            });
+                        }
+                    });
+
+                    socketService.offBatchRefinementFailed();
+                    socketService.onBatchRefinementFailed((data: any) => {
+                        console.warn('⚠️ Batch refinement failed:', data);
+                    });
+
                     socketService.offQuestionPinnedToggle();
                     socketService.onQuestionPinnedToggle((updatedQ: Question) => {
                         setQuestions(prev => prev.map(q => q._id === updatedQ._id ? updatedQ : q));
@@ -2747,14 +2766,14 @@ const SessionView: React.FC = () => {
                     setQuestions(prev => {
                         const newQuestions = questionsRes.data;
                         // Check for new teacher answers
-                        const hasNewTeacherAnswers = newQuestions.some(nq =>
+                        const hasNewTeacherAnswers = newQuestions.some(nq => 
                             nq.teacherAnswer && !prev.find(pq => pq._id === nq._id && pq.teacherAnswer === nq.teacherAnswer)
                         );
-
+                        
                         if (hasNewTeacherAnswers) {
                             console.log('📨 Polling found new teacher answers');
                         }
-
+                        
                         return [...newQuestions].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
                     });
                 }
@@ -3399,7 +3418,7 @@ const SessionView: React.FC = () => {
                         </div>
 
                         {selectedQuestion ? (
-                            <div className="anim-scale-up" style={{
+                            <div className="anim-scale-up" style={{ 
                                 width: '100%',
                                 height: '100%',
                                 flex: 1,
@@ -3704,7 +3723,15 @@ const SessionView: React.FC = () => {
 
                         {session.qrCodeDataUrl ? (
                             <div style={{ background: 'white', padding: '0.8rem', borderRadius: '12px', display: 'inline-block', boxShadow: '0 0 30px rgba(99, 102, 241, 0.15)' }}>
-                                <img src={session.qrCodeDataUrl} alt="QR Code" style={{ width: '250px', height: '250px', display: 'block' }} />
+                                <a
+                                    href={session.joinUrl || `${window.location.origin}/join/${session.code}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Open join form"
+                                    style={{ display: 'block' }}
+                                >
+                                    <img src={session.qrCodeDataUrl} alt="QR Code" style={{ width: '250px', height: '250px', display: 'block', cursor: 'pointer' }} />
+                                </a>
                             </div>
                         ) : (
                             <div style={{ padding: '2rem', color: 'var(--color-text-muted)' }}>QR Code missing</div>
