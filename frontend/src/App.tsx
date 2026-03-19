@@ -1,81 +1,27 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import SessionView from './pages/SessionView';
-import SessionSummary from './pages/SessionSummary';
-import Assignments from './pages/Assignments';
-import AssignmentDetails from './pages/AssignmentDetails';
-import GuestJoinForm from './pages/GuestJoinForm';
-import QueryPPTView from './pages/QueryPPTView';
-import QueryAsk from './pages/QueryAsk';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
+import Login from "./components/Login";
+import Register from "./components/Register";
+import Profile from "./components/Profile";
+import Student from "./components/student";
+import Teacher from "./components/teacher";
+import Session from "./components/Session";
+import AuthSuccess from "./components/AuthSuccess";
 
-const App: React.FC = () => {
-    return (
-        <AuthProvider>
-            <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                <Routes>
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/register" element={<Register />} />
-                    {/* Public route for guest join and query ask */}
-                    <Route path="/join/:code" element={<GuestJoinForm />} />
-                    <Route path="/ask/:code" element={<QueryAsk />} />
-                    <Route
-                        path="/dashboard"
-                        element={
-                            <ProtectedRoute>
-                                <Dashboard />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/session/:code"
-                        element={
-                            <ProtectedRoute>
-                                <SessionView />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/session/:code/summary"
-                        element={
-                            <ProtectedRoute>
-                                <SessionSummary />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/assignments"
-                        element={
-                            <ProtectedRoute>
-                                <Assignments />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/assignments/:id"
-                        element={
-                            <ProtectedRoute>
-                                <AssignmentDetails />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/query-mode"
-                        element={
-                            <ProtectedRoute>
-                                <QueryPPTView />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                </Routes>
-            </Router>
-        </AuthProvider>
-    );
-};
-
-export default App;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Toaster position="top-center" />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/student" element={<Student />} />
+        <Route path="/teacher" element={<Teacher />} />
+        <Route path="/session/:sessionCode" element={<Session />} />
+        <Route path="/auth/success" element={<AuthSuccess />} />
+        <Route path="/" element={<Login />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}

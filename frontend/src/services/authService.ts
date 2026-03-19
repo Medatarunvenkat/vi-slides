@@ -1,59 +1,59 @@
-import api from './api';
+import axios from "axios";
 
-export interface User {
-    id: string;
-    name: string;
-    email: string;
-    role: 'Teacher' | 'Student';
-    avatar?: string;
-}
+const api = axios.create({
+  baseURL: "http://localhost:5000/",
+});
 
-export interface RegisterData {
-    name: string;
-    email: string;
-    password: string;
-    role: 'Teacher' | 'Student';
-}
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = "Bearer " + token;
+  }
+  return config;
+});
 
-export interface LoginData {
-    email: string;
-    password: string;
-}
-
-export interface AuthResponse {
-    success: boolean;
-    token: string;
-    user: User;
-}
+const request = async (promise: Promise<any>, errorMsg: string) => {
+  try {
+    const { data } = await promise;
+    return data;
+  } catch (error: any) {
+    throw error.response?.data || { message: errorMsg };
+  }
+};
 
 export const authService = {
-    // Register new user
-    register: async (data: RegisterData): Promise<AuthResponse> => {
-        const response = await api.post<AuthResponse>('/auth/register', data);
-        return response.data;
-    },
+  register: (email: string, password: string, name: string, role: string) =>
+    request(api.post("/register", { email, password, name, role }), "Failed to register"),
 
-    // Login user
-    login: async (data: LoginData): Promise<AuthResponse> => {
-        const response = await api.post<AuthResponse>('/auth/login', data);
-        return response.data;
-    },
+  login: async (email: string, password: string) => {
+    const data = await request(
+      api.post("/login", { email, password }),
+      "Login failed"
+    );
 
-    // Get current user
-    getCurrentUser: async (): Promise<{ success: boolean; user: User }> => {
-        const response = await api.get('/auth/me');
-        return response.data;
-    },
+    if (data.token) localStorage.setItem("token", data.token);
+    return data;
+  },
 
-    // Update user details
-    updateDetails: async (data: { name: string; email: string }): Promise<{ success: boolean; user: User }> => {
-        const response = await api.put('/auth/updatedetails', data);
-        return response.data;
-    },
+  googleLogin: async (token: string, role?: string) => {
+    const data = await request(
+      api.post("/google-login", { token, role }),
+      "Google Login failed"
+    );
 
-    // Google Login
-    googleLogin: async (token: string, role?: string): Promise<AuthResponse> => {
-        const response = await api.post<AuthResponse>('/auth/google', { token, role });
-        return response.data;
-    }
+    if (data.token) localStorage.setItem("token", data.token);
+    return data;
+  },
+
+  logout: () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("studentInfo");
+  },
+
+  getProfile: () =>
+    request(api.get("/profile"), "Failed to fetch profile"),
+
+  getToken: () => localStorage.getItem("token"),
+
+  isAuthenticated: () => !!localStorage.getItem("token"),
 };
