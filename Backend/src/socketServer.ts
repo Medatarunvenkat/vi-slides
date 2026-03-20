@@ -1,5 +1,6 @@
 import { Server as HTTPServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
+import { askAI } from './services/aiService';
 
 interface Question {
   id: string;
@@ -94,6 +95,29 @@ export const createSocketServer = (httpServer: HTTPServer) => {
         // Broadcast to all in session
         io.to(data.sessionCode).emit('new-answer', activeSessions[data.sessionCode].questions[questionIndex]);
         console.log(`Answer added in ${data.sessionCode}:`, data.questionId);
+      }
+    });
+
+    // Handle AI request
+    socket.on('ask-ai', async (data: { sessionCode: string; questionId: string }) => {
+      if (role !== 'teacher') return;
+
+      const session = activeSessions[data.sessionCode];
+      if (!session) return;
+
+      const question = session.questions.find(q => q.id === data.questionId);
+      if (!question) return;
+
+      console.log(`AI request for question: ${question.question}`);
+      const aiResponse = await askAI(question.question);
+
+      const questionIndex = session.questions.findIndex(q => q.id === data.questionId);
+      if (questionIndex !== -1) {
+        session.questions[questionIndex].answer = ` AI response: ${aiResponse}`;
+
+        // Broadcast to all in session
+        io.to(data.sessionCode).emit('new-answer', session.questions[questionIndex]);
+        console.log(`AI response added in ${data.sessionCode}:`, data.questionId);
       }
     });
 

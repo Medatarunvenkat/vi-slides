@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import { useSocket } from '../hooks/useSocket';
 import "../styles/session.css";
@@ -45,6 +45,8 @@ export default function Session() {
   const [answerText, setAnswerText] = useState('');
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [isAIThinking, setIsAIThinking] = useState(false);
+
 
   const userInfo = JSON.parse(localStorage.getItem("studentInfo") || "{}");
 
@@ -62,9 +64,10 @@ export default function Session() {
     socket.on('new-question', (q: Question) =>
       setQuestions(prev => [...prev, q])
     );
-    socket.on('new-answer', (q: Question) =>
-      setQuestions(prev => prev.map(x => x.id === q.id ? q : x))
-    );
+    socket.on('new-answer', (q: Question) => {
+      setQuestions(prev => prev.map(x => x.id === q.id ? q : x));
+      setIsAIThinking(false);
+    });
     socket.on('session-ended', () => {
       setEnded(true);
       toast.error('Session has been ended by the teacher');
@@ -156,6 +159,16 @@ export default function Session() {
     });
 
     setAnswerText('');
+  };
+
+  const handleAskAI = (id: string) => {
+    if (!socket || isAIThinking) return;
+    setIsAIThinking(true);
+    socket.emit('ask-ai', {
+      sessionCode,
+      questionId: id
+    });
+    toast.success('Asking AI for a response...');
   };
 
   const handleStudentLeave = () => navigate("/student");
@@ -267,6 +280,14 @@ export default function Session() {
                     />
                     <button className="btn-primary" onClick={() => handleSendAnswer(current.id)}>
                       Reply
+                    </button>
+                    <button
+                      className="btn-ai"
+                      onClick={() => handleAskAI(current.id)}
+                      disabled={isAIThinking}
+                    >
+                      <Sparkles size={14} style={{ marginRight: '5px' }} />
+                      {isAIThinking ? "Thinking..." : "Ask AI"}
                     </button>
                   </div>
                 )}
