@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import toast from "react-hot-toast";
 import { useSocket } from '../hooks/useSocket';
 import "../styles/session.css";
 
@@ -43,6 +44,7 @@ export default function Session() {
   const [newQuestion, setNewQuestion] = useState('');
   const [answerText, setAnswerText] = useState('');
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
 
   const userInfo = JSON.parse(localStorage.getItem("studentInfo") || "{}");
 
@@ -63,6 +65,29 @@ export default function Session() {
     socket.on('new-answer', (q: Question) =>
       setQuestions(prev => prev.map(x => x.id === q.id ? q : x))
     );
+    socket.on('session-ended', () => {
+      setEnded(true);
+      toast.error('Session has been ended by the teacher');
+      setTimeout(() => {
+        navigate('/student');
+      }, 2000);
+    });
+    socket.on('session-paused-toggled', (paused: boolean) => {
+      setIsPaused(paused);
+      if (paused) {
+        toast.error('Session has been paused');
+      } else {
+        toast.success('Session has been resumed');
+      }
+    });
+
+    return () => {
+      socket.off('load-questions');
+      socket.off('new-question');
+      socket.off('new-answer');
+      socket.off('session-ended');
+      socket.off('session-paused-toggled');
+    };
   }, [socket]);
 
   // LOAD SESSION
@@ -111,7 +136,7 @@ export default function Session() {
 
   // ACTIONS
   const handleSendQuestion = () => {
-    if (!newQuestion.trim() || !socket) return;
+    if (!newQuestion.trim() || !socket || isPaused) return;
 
     socket.emit('send-question', {
       sessionCode,
@@ -136,6 +161,10 @@ export default function Session() {
   const handleStudentLeave = () => navigate("/student");
 
   const handleEndSession = () => {
+    if (socket && role === "teacher") {
+      socket.emit('end-session', { sessionCode });
+    }
+
     const sessions: SessionItem[] = JSON.parse(localStorage.getItem("sessions") || "[]");
 
     const updated = sessions.map(s =>
@@ -147,10 +176,16 @@ export default function Session() {
     navigate(role === "teacher" ? "/teacher" : "/student");
   };
 
+  const handleTogglePause = () => {
+    if (socket && role === "teacher") {
+      socket.emit('toggle-pause', { sessionCode });
+    }
+  };
+
   if (!session) return <div className="center-msg">Session not found</div>;
   if (ended) return <div className="center-msg">Session ended</div>;
 
-const current = currentSlideIndex !== null ? questions[currentSlideIndex] : null;
+  const current = currentSlideIndex !== null ? questions[currentSlideIndex] : null;
 
   return (
     <div className="session-page">
@@ -162,13 +197,21 @@ const current = currentSlideIndex !== null ? questions[currentSlideIndex] : null
           <span className="session-title">{session.name}</span>
           <div className="actions">
             {role === "teacher" && (
-              <button className="btn-danger" onClick={handleEndSession}>End</button>
+              <>
+                <button
+                  className={isPaused ? "btn-success" : "btn-warning"}
+                  onClick={handleTogglePause}
+                >
+                  {isPaused ? "Resume" : "Pause"}
+                </button>
+                <button className="btn-danger" onClick={handleEndSession}>End</button>
+              </>
             )}
 
             {role === "student" && (
               <button className="btn-danger" onClick={handleStudentLeave}>Leave</button>
             )}
-            
+
             <button className="btn-icon" onClick={() => navigate("/")}>
               <ArrowLeft size={14} />
             </button>
@@ -177,40 +220,40 @@ const current = currentSlideIndex !== null ? questions[currentSlideIndex] : null
 
         {/* Q&A */}
         <div className={`qa-sidebar ${showSidebar ? "open" : ""}`}>
-  <h3>Questions</h3>
-  {questions.map((q, index) => (
-    <div
-      key={q.id}
-     className={`sidebar-item ${currentSlideIndex === index ? "active" : ""}`}
-      onClick={() => {
-        setCurrentSlideIndex(index);
-        setShowSidebar(false);
-      }}
-    >
-      <strong>{q.studentName}</strong>
-      <p>{q.question}</p>
-    </div>
-  ))}
-</div>
-{showSidebar && (
-  <div className="overlay" onClick={() => setShowSidebar(false)} />
-)}
+          <h3>Questions</h3>
+          {questions.map((q, index) => (
+            <div
+              key={q.id}
+              className={`sidebar-item ${currentSlideIndex === index ? "active" : ""}`}
+              onClick={() => {
+                setCurrentSlideIndex(index);
+                setShowSidebar(false);
+              }}
+            >
+              <strong>{q.studentName}</strong>
+              <p>{q.question}</p>
+            </div>
+          ))}
+        </div>
+        {showSidebar && (
+          <div className="overlay" onClick={() => setShowSidebar(false)} />
+        )}
         <div className="card">
-        <div className="card-title">
-        <button onClick={() => setShowSidebar(true)} className="card-btn">☰</button>
-         Live Q&A {connected ? "🟢" : "⚪"}
-         </div>
-         
+          <div className="card-title">
+            <button onClick={() => setShowSidebar(true)} className="card-btn">☰</button>
+            Live Q&A {connected ? "🟢" : "⚪"} {isPaused && <span className="paused-badge">Paused</span>}
+          </div>
 
-         {questions.length === 0 ? (
-       <div className="qa-empty">No questions yet</div>
-     ) : current === null ? (
-       <div className="qa-empty">Select a question from sidebar</div>
-         ) : (
-          <div className="qa-box">
-             <div className="question" key={current.id}>
-               <span className="student">{current?.studentName}</span>
-               <p>{current?.question}</p>
+
+          {questions.length === 0 ? (
+            <div className="qa-empty">No questions yet</div>
+          ) : current === null ? (
+            <div className="qa-empty">Select a question from sidebar</div>
+          ) : (
+            <div className="qa-box">
+              <div className="question" key={current.id}>
+                <span className="student">{current?.studentName}</span>
+                <p>{current?.question}</p>
 
                 {current.answer ? (
                   <div className="answer">{current.answer}</div>
@@ -231,34 +274,39 @@ const current = currentSlideIndex !== null ? questions[currentSlideIndex] : null
 
               {/* NAV */}
               <div className="nav-btns">
-                   <button disabled={currentSlideIndex === null}  onClick={() =>  setCurrentSlideIndex(i =>
-                       i === null ? 0 : Math.max(0, i - 1) )
-                      }
-                      >Prev
-              </button>
-              <button
-    disabled={currentSlideIndex === null}
-    onClick={() =>
-      setCurrentSlideIndex(i =>
-        i === null ? 0 : Math.min(questions.length - 1, i + 1)
-      )
-    }
-  >
-    Next
-  </button>
-</div>
- </div>
+                <button disabled={currentSlideIndex === null} onClick={() => setCurrentSlideIndex(i =>
+                  i === null ? 0 : Math.max(0, i - 1))
+                }
+                >Prev
+                </button>
+                <button
+                  disabled={currentSlideIndex === null}
+                  onClick={() =>
+                    setCurrentSlideIndex(i =>
+                      i === null ? 0 : Math.min(questions.length - 1, i + 1)
+                    )
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           )}
 
           {role === "student" && (
-            <div className="input-row">
+            <div className={`input-row ${isPaused ? "paused-input" : ""}`}>
               <input
                 className="input"
                 value={newQuestion}
                 onChange={(e) => setNewQuestion(e.target.value)}
-                placeholder="Ask a question..."
+                placeholder={isPaused ? "Session is paused..." : "Ask a question..."}
+                disabled={isPaused}
               />
-              <button className="btn-primary" onClick={handleSendQuestion}>
+              <button
+                className="btn-primary"
+                onClick={handleSendQuestion}
+                disabled={isPaused}
+              >
                 Send
               </button>
             </div>

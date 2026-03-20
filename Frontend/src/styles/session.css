@@ -364,3 +364,54 @@
   size: 1.2rem; 
 
 }
+
+/* BUTTONS EXTENSION */
+
+.btn-warning {
+  background: #f59e0b;
+  border: none;
+  color: white;
+
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-warning:hover {
+  background: #d97706;
+}
+
+.btn-success {
+  background: #10b981;
+  border: none;
+  color: white;
+
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-success:hover {
+  background: #059669;
+}
+
+.paused-badge {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    margin-left: 8px;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.paused-input {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.paused-input input::placeholder {
+    color: #f59e0b;
+}
