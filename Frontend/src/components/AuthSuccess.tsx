@@ -19,7 +19,7 @@ export default function AuthSuccess() {
           toast.success(`Welcome back, ${data.user.name || 'User'}!`);
           
           // Store user data in localStorage or context
-          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('studentInfo', JSON.stringify(data.user));
           
           // Redirect based on role
           if (data.user.role === "teacher") {

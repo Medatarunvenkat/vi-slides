@@ -1,17 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, LayoutDashboard, Zap } from "lucide-react";
+import { Zap } from "lucide-react";
 import toast from "react-hot-toast";
 import "../styles/teacher.css";
-
-function generateSessionCode(length = 6) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < length; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
+import { sessionService } from "../services/sessionService";
 
 type SessionItem = {
   code: string;
@@ -27,26 +19,29 @@ export default function Teacher() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const sessions: SessionItem[] = JSON.parse(localStorage.getItem("sessions") || "[]");
-    setActiveSessions(sessions.filter((s) => s.status !== "ended"));
+    const loadSessions = async () => {
+      try {
+        const sessions = await sessionService.getActiveSessions();
+        setActiveSessions(sessions);
+      } catch (err) {
+        console.error("Failed to load sessions", err);
+      }
+    };
+    loadSessions();
   }, []);
 
-  const handleCreateSession = () => {
+  const handleCreateSession = async () => {
     const trimmedName = sessionName.trim();
     if (!trimmedName) { toast.error("Please enter a session name"); return; }
 
-    const sessionCode = generateSessionCode();
-    const sessions: SessionItem[] = JSON.parse(localStorage.getItem("sessions") || "[]");
-    const newSession: SessionItem = {
-      code: sessionCode,
-      name: trimmedName,
-      createdBy: "teacher",
-      createdAt: new Date().toISOString(),
-      status: "active",
-    };
-    localStorage.setItem("sessions", JSON.stringify([...sessions, newSession]));
-    setActiveSessions((prev) => [...prev, newSession]);
-    navigate(`/session/${sessionCode}?role=teacher`);
+    try {
+      const info = JSON.parse(localStorage.getItem("studentInfo") || "{}");
+      const session = await sessionService.createSession(trimmedName, info.name || "Teacher");
+      setActiveSessions((prev) => [...prev, session]);
+      navigate(`/session/${session.code}?role=teacher`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create session");
+    }
   };
 
   return (

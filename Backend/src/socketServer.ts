@@ -13,8 +13,8 @@ interface Question {
 interface ActiveSession {
   [sessionCode: string]: {
     questions: Question[];
-    students: string[];
-    isPaused: boolean;// to track for pausing the session
+    students: { id: string; name: string }[];
+    isPaused: boolean;
   };
 }
 
@@ -53,21 +53,24 @@ export const createSocketServer = (httpServer: HTTPServer) => {
 
     // Add student to active students list
     if (role === 'student' && userName) {
-      if (!activeSessions[sessionCode as string].students.includes(userName as string)) {
-        activeSessions[sessionCode as string].students.push(userName as string);
+      const session = activeSessions[sessionCode as string];
+      if (!session.students.find(s => s.id === socket.id)) {
+        session.students.push({ id: socket.id, name: userName as string });
       }
+      // Broadcast updated student list
+      io.to(sessionCode as string).emit('update-students', session.students.map(s => s.name));
+    }
+    else if (role === 'teacher') {
+      socket.emit('update-students', activeSessions[sessionCode as string].students.map(s => s.name));
     }
 
-    // Send existing questions and pause state to new user
     socket.emit('load-questions', activeSessions[sessionCode as string].questions);
     socket.emit('session-paused-toggled', activeSessions[sessionCode as string].isPaused);
 
     // Handle new question
     socket.on('send-question', (data: { sessionCode: string; question: string }) => {
       const session = activeSessions[data.sessionCode];
-      if (!session || session.isPaused) {
-        return;
-      }
+      if (!session || session.isPaused) return;
 
       const newQuestion: Question = {
         id: Date.now().toString(),
@@ -77,48 +80,31 @@ export const createSocketServer = (httpServer: HTTPServer) => {
       };
 
       session.questions.push(newQuestion);
-
-      // Broadcast to all in session
       io.to(data.sessionCode).emit('new-question', newQuestion);
-      console.log(`New question in ${data.sessionCode}:`, newQuestion);
     });
 
     // Handle answer
     socket.on('send-answer', (data: { sessionCode: string; questionId: string; answer: string }) => {
-      const questionIndex = activeSessions[data.sessionCode].questions.findIndex(
-        q => q.id === data.questionId
-      );
-
-      if (questionIndex !== -1) {
-        activeSessions[data.sessionCode].questions[questionIndex].answer = data.answer;
-
-        // Broadcast to all in session
-        io.to(data.sessionCode).emit('new-answer', activeSessions[data.sessionCode].questions[questionIndex]);
-        console.log(`Answer added in ${data.sessionCode}:`, data.questionId);
+      const session = activeSessions[data.sessionCode];
+      if (!session) return;
+      const question = session.questions.find(q => q.id === data.questionId);
+      if (question) {
+        question.answer = data.answer;
+        io.to(data.sessionCode).emit('new-answer', question);
       }
     });
 
     // Handle AI request
     socket.on('ask-ai', async (data: { sessionCode: string; questionId: string }) => {
       if (role !== 'teacher') return;
-
       const session = activeSessions[data.sessionCode];
       if (!session) return;
-
       const question = session.questions.find(q => q.id === data.questionId);
       if (!question) return;
 
-      console.log(`AI request for question: ${question.question}`);
       const aiResponse = await askAI(question.question);
-
-      const questionIndex = session.questions.findIndex(q => q.id === data.questionId);
-      if (questionIndex !== -1) {
-        session.questions[questionIndex].answer = ` AI response: ${aiResponse}`;
-
-        // Broadcast to all in session
-        io.to(data.sessionCode).emit('new-answer', session.questions[questionIndex]);
-        console.log(`AI response added in ${data.sessionCode}:`, data.questionId);
-      }
+      question.answer = ` AI response: ${aiResponse}`;
+      io.to(data.sessionCode).emit('new-answer', question);
     });
 
     // Handle end session
@@ -126,7 +112,6 @@ export const createSocketServer = (httpServer: HTTPServer) => {
       if (role === 'teacher') {
         io.to(data.sessionCode).emit('session-ended');
         delete activeSessions[data.sessionCode];
-        console.log(`Session ${data.sessionCode} ended by teacher`);
       }
     });
 
@@ -137,22 +122,22 @@ export const createSocketServer = (httpServer: HTTPServer) => {
         if (session) {
           session.isPaused = !session.isPaused;
           io.to(data.sessionCode).emit('session-paused-toggled', session.isPaused);
-          console.log(`Session ${data.sessionCode} pause state: ${session.isPaused}`);
         }
       }
     });
 
     socket.on('disconnect', () => {
       console.log('User disconnected:', socket.id);
-
-      // Remove student from active list
-      if (role === 'student' && userName && activeSessions[sessionCode as string]) {
-        const index = activeSessions[sessionCode as string].students.indexOf(userName as string);
+      if (role === 'student' && activeSessions[sessionCode as string]) {
+        const session = activeSessions[sessionCode as string];
+        const index = session.students.findIndex(s => s.id === socket.id);
         if (index > -1) {
-          activeSessions[sessionCode as string].students.splice(index, 1);
+          session.students.splice(index, 1);
+          io.to(sessionCode as string).emit('update-students', session.students.map(s => s.name));
         }
       }
     });
+
   });
 
   return { io, httpServer };

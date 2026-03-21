@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import { useSocket } from '../hooks/useSocket';
+import { sessionService } from "../services/sessionService";
 import "../styles/session.css";
 
 type Student = {
@@ -70,10 +71,15 @@ export default function Session() {
     });
     socket.on('session-ended', () => {
       setEnded(true);
-      toast.error('Session has been ended by the teacher');
-      setTimeout(() => {
-        navigate('/student');
-      }, 2000);
+      // If student, show message and redirect after delay
+      if (role === 'student') {
+        toast.error('Session has been ended by the teacher');
+        setTimeout(() => navigate('/student'), 2000);
+      } else if (role === 'teacher') {
+        // Teachers who didn't click "End" might see this (e.g., another teacher or session closed remotely)
+        toast('This session has been closed', { icon: '🛑' });
+        setTimeout(() => navigate('/teacher'), 2000);
+      }
     });
     socket.on('session-paused-toggled', (paused: boolean) => {
       setIsPaused(paused);
@@ -84,58 +90,39 @@ export default function Session() {
       }
     });
 
+    socket.on('update-students', (updatedStudents: string[]) => {
+      const formattedStudents: Student[] = updatedStudents.map((name, index) => ({
+        id: index.toString(),
+        name,
+        joinedAt: new Date().toISOString()
+      }));
+      setStudents(formattedStudents);
+    });
+
     return () => {
       socket.off('load-questions');
       socket.off('new-question');
       socket.off('new-answer');
       socket.off('session-ended');
       socket.off('session-paused-toggled');
+      socket.off('update-students');
     };
   }, [socket]);
 
   // LOAD SESSION
   useEffect(() => {
-    const sessions: SessionItem[] = JSON.parse(localStorage.getItem("sessions") || "[]");
-    const found = sessions.find(s => s.code === sessionCode);
-    if (!found) return setSession(null);
-    if (found.status === "ended") setEnded(true);
-
-    setSession(found);
-    setStudents(found.students || []);
+    const loadSession = async () => {
+      if (!sessionCode) return;
+      try {
+        const found = await sessionService.getSession(sessionCode);
+        setSession(found);
+        if (found.status === "ended") setEnded(true);
+      } catch (err) {
+        setSession(null);
+      }
+    };
+    loadSession();
   }, [sessionCode]);
-
-  // AUTO JOIN
-  useEffect(() => {
-    if (role !== "student" || !sessionCode) return;
-
-    const info = JSON.parse(localStorage.getItem("studentInfo") || "{}");
-    const name = info.name || info.email?.split("@")[0];
-
-    const sessions: SessionItem[] = JSON.parse(localStorage.getItem("sessions") || "[]");
-    const current = sessions.find(s => s.code === sessionCode);
-
-    if (!current) return;
-
-    setStudents(current.students || []);
-
-    const exists = current.students?.some(s => s.name === name);
-    if (!exists) {
-      const newStudent: Student = {
-        id: Date.now().toString(),
-        name,
-        joinedAt: new Date().toISOString()
-      };
-
-      const updated = sessions.map(s =>
-        s.code === sessionCode
-          ? { ...s, students: [...(s.students || []), newStudent] }
-          : s
-      );
-
-      localStorage.setItem("sessions", JSON.stringify(updated));
-      setStudents(prev => [...prev, newStudent]);
-    }
-  }, [role, sessionCode]);
 
   // ACTIONS
   const handleSendQuestion = () => {
@@ -173,20 +160,22 @@ export default function Session() {
 
   const handleStudentLeave = () => navigate("/student");
 
-  const handleEndSession = () => {
+  const handleEndSession = async () => {
     if (socket && role === "teacher") {
       socket.emit('end-session', { sessionCode });
     }
 
-    const sessions: SessionItem[] = JSON.parse(localStorage.getItem("sessions") || "[]");
-
-    const updated = sessions.map(s =>
-      s.code === sessionCode ? { ...s, status: "ended" } : s
-    );
-
-    localStorage.setItem("sessions", JSON.stringify(updated));
-    setEnded(true);
-    navigate(role === "teacher" ? "/teacher" : "/student");
+    try {
+      if (sessionCode) {
+        await sessionService.endSession(sessionCode);
+      }
+      setEnded(true);
+      toast.success('Session ended successfully');
+      navigate('/teacher');
+    } catch (err) {
+      console.error("Failed to end session", err);
+      navigate('/teacher');
+    }
   };
 
   const handleTogglePause = () => {

@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import authRoutes from './routes/authRoutes';
+import sessionRoutes from './routes/sessionRoutes';
 import cors from "cors";
 import connectDB from "./config/db";
 import passport from './config/passport';
@@ -29,6 +30,7 @@ app.use(cors({
 app.use(express.json());
 connectDB();
 app.use("/", authRoutes);
+app.use("/api/sessions", sessionRoutes);
 
 app.get("/", (req, res) => {
   res.send("Server working");

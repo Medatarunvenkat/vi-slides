@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import toast from "react-hot-toast";
 import "../styles/student.css";
+import { sessionService } from "../services/sessionService";
 
 type SessionItem = {
   code: string;
@@ -16,17 +17,20 @@ export default function Student() {
   const [sessionCode, setSessionCode] = useState("");
   const navigate = useNavigate();
 
-  const handleJoinSession = () => {
+  const handleJoinSession = async () => {
     const trimmedCode = sessionCode.trim().toUpperCase();
     if (!trimmedCode) { toast.error("Please enter a session code"); return; }
 
-    const sessions: SessionItem[] = JSON.parse(localStorage.getItem("sessions") || "[]");
-    const matched = sessions.find((s) => s.code === trimmedCode);
-
-    if (!matched) { toast.error("Session not found. Check your code and try again."); return; }
-    if (matched.status === "ended") { toast.error("This session has ended. Please contact your teacher."); return; }
-
-    navigate(`/session/${trimmedCode}?role=student`);
+    try {
+      const session = await sessionService.getSession(trimmedCode);
+      if (session.status === "ended") {
+        toast.error("This session has ended. Please contact your teacher.");
+        return;
+      }
+      navigate(`/session/${trimmedCode}?role=student`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Session not found. Check your code and try again.");
+    }
   };
 
   return (
